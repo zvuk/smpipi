@@ -2,8 +2,6 @@
 import binascii
 import random
 
-from .compat import bytestr, bchr
-
 # from http://stackoverflow.com/questions/2452861/python-library-for-converting-plain-text-ascii-into-gsm-7-bit-character-set
 gsm = (u"@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>"
        u"?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ`¿abcdefghijklmnopqrstuvwxyzäöñüà")
@@ -35,15 +33,15 @@ class MessageTooLong(ValueError):
 
 def gsm_encode(plaintext, hex=False):
     """Replace non-GSM ASCII symbols"""
-    res = b''
+    res = ""
     for c in plaintext:
         idx = gsm.find(c)
         if idx != -1:
-            res += bchr(idx)
+            res += chr(idx)
             continue
         idx = ext.find(c)
         if idx != -1:
-            res += bchr(27) + bchr(idx)
+            res += chr(27) + chr(idx)
             continue
         raise EncodeError()
     return binascii.b2a_hex(res) if hex else res
@@ -87,8 +85,8 @@ def make_parts(text):
         ipart = 1
         uid = random.randint(0, 255)
         for start in starts:
-            parts.append(b''.join((b'\x05\x00\x03', bchr(uid),
-                                  bchr(len(starts)), bchr(ipart),
+            parts.append(''.join(('\x05\x00\x03', chr(uid),
+                                  chr(len(starts)), chr(ipart),
                                   encode(text[start:start + partsize]))))
             ipart += 1
     else:

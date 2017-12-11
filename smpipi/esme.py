@@ -1,7 +1,6 @@
 import logging
 import socket
 import time
-from binascii import hexlify
 
 from . import command
 from .packet import int32
@@ -46,7 +45,7 @@ class ESME(object):
             size, _ = int32.decode(dlen, 0)
             body = self._socket.recv(size - 4)
             pdu = dlen + body
-            pdu_hex = hexlify(pdu)
+            pdu_hex = pdu.encode('hex')
             try:
                 cmd = command.Command.decode(pdu)
             except:  # pragma: no cover
@@ -106,7 +105,7 @@ class ESME(object):
 
     def reply(self, cmd):
         payload = cmd.encode()
-        pdu_log.debug('<< %s %r', hexlify(payload), cmd)
+        pdu_log.debug('<< %s %r', payload.encode('hex'), cmd)
         self._socket.sendall(payload)
 
     def bind_transceiver(self, system_id, password, interface_version=0x34, **kwargs):
