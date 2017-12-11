@@ -8,24 +8,12 @@ from .packet import int32
 pdu_log = logging.getLogger('smpipi.pdu')
 
 
-class UnknownCommand(Exception):
-    pass
-
-
-class BrokenLink(Exception):
-    pass
-
-
 class ESME(object):
     def __init__(self, host, port, timeout=60, handler=None,
-                 enquire_timeout=300, conn_timeout=10,
-                 post_handler=None, connection=None):
+                 enquire_timeout=300, conn_timeout=10, post_handler=None):
         self.sequence_number = 0
-        if connection:
-            self._socket = connection
-        else:  # pragma: no cover
-            self._socket = socket.create_connection((host, port), timeout=conn_timeout)
-            self._socket.settimeout(timeout)
+        self._socket = socket.create_connection((host, port), timeout=conn_timeout)
+        self._socket.settimeout(timeout)
         self.handler = handler
         self.post_handler = post_handler
         self.enquire_timeout = 300
@@ -38,7 +26,7 @@ class ESME(object):
     def read(self):
         try:
             dlen = self._socket.recv(4)
-        except socket.timeout:  # pragma: no cover
+        except socket.timeout:
             return
 
         if dlen:
@@ -48,7 +36,7 @@ class ESME(object):
             pdu_hex = pdu.encode('hex')
             try:
                 cmd = command.Command.decode(pdu)
-            except:  # pragma: no cover
+            except:
                 pdu_log.debug('>> %s DecodeError', pdu_hex)
                 raise
             else:
@@ -57,10 +45,10 @@ class ESME(object):
             return cmd
 
     def handle(self, cmd):
-        self.last_enquire = time.time()
         cmd_type = type(cmd)
         seq = {'sequence_number': cmd.sequence_number}
         if cmd_type is command.EnquireLink:
+            self.last_enquire = time.time()
             self.reply(command.EnquireLinkResp(**seq))
         elif cmd_type is command.Unbind:
             self.reply(command.UnbindResp(**seq))
@@ -73,9 +61,9 @@ class ESME(object):
             if self.post_handler:
                 self.post_handler(result)
         elif cmd_type is command.SubmitSMResp:
-            pass
+            self.last_enquire = time.time()
         else:
-            raise UnknownCommand(repr(cmd))
+            raise Exception('Unknown command: {}'.format(cmd))
 
     def listen(self):
         pdu = self.read()
@@ -89,7 +77,7 @@ class ESME(object):
                     if type(pdu) is not command.EnquireLinkResp:
                         self.handle(pdu)
                 else:
-                    raise BrokenLink('SMPP link broken: no response from SMSC')
+                    raise Exception('SMPP link broken: no response from SMSC')
 
     def send(self, cmd):
         self.send_async(cmd)

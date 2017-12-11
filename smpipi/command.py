@@ -20,7 +20,7 @@ class Command(CommandMeta('CommandBase', (AttrDict,), {})):
         self.update(kwargs)
         self['command_id'] = self.command_id
 
-    def __repr__(self):  # pragma: no cover
+    def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, dict(self))
 
     @staticmethod
