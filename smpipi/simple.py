@@ -34,8 +34,6 @@ class ESME(BaseESME):
         if not response.ready:
             raise Timeout()
 
-        return response.response
-
     def read(self, timeout_result=True):
         if self.closed:
             return False

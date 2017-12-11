@@ -42,7 +42,7 @@ class TestESME(BaseESME):
     def on_close(self):
         self.closed = True
 
-    def on_deliver(self, request, response, reply):
+    def on_deliver(self, request, response):
         self.delivered_commands.append(request)
 
     def feed_cmd(self, *cmds):
@@ -105,14 +105,16 @@ def test_deliver():
 
 
 def test_deliver_with_post_handler():
-    def on_deliver(req, resp, reply):
-        reply()
-        assert esme.commands_to_send[-1].command_id == command.DeliverSMResp.command_id
+    def post():
+        post.called = True
+
+    def on_deliver(req, resp):
+        return post
 
     esme = TestESME()
     esme.on_deliver = on_deliver
     esme.feed_cmd(command.DeliverSM(sequence_number=42, short_message='boo'))
-    assert len(esme.commands_to_send) == 1
+    assert post.called
 
 
 def test_ping():

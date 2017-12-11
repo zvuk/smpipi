@@ -16,9 +16,8 @@ class BrokenLink(Exception):
 
 
 class Proto(object):
-    def __init__(self, logger=None):
+    def __init__(self):
         self.buffer = b''
-        self.log = logger or pdu_log
 
     def receive_bytes(self, data):
         self.buffer += data
@@ -33,10 +32,10 @@ class Proto(object):
             try:
                 cmd = command.Command.decode(pdu)
             except:  # pragma: no cover
-                self.log.debug('>> %s DecodeError', pdu_hex)
+                pdu_log.debug('>> %s DecodeError', pdu_hex)
                 raise
             else:
-                self.log.debug('>> %s %r', pdu_hex, cmd)
+                pdu_log.debug('>> %s %r', pdu_hex, cmd)
                 yield cmd
 
     def send_bytes(self, *events):
@@ -44,7 +43,7 @@ class Proto(object):
         for pdu in events:
             payload = pdu.encode()
             result.append(payload)
-            self.log.debug('<< %s %r', hexlify(payload), pdu)
+            pdu_log.debug('<< %s %r', hexlify(payload), pdu)
 
         return b''.join(result)
 
@@ -63,8 +62,8 @@ class Response(object):
 
 
 class BaseConnection(object):
-    def __init__(self, response_queue_size=None, enquire_timeout=None, logger=None):
-        self.proto = Proto(logger)
+    def __init__(self, response_queue_size=None, enquire_timeout=None):
+        self.proto = Proto()
         self.sequence_number = 0
 
         self.last_enquire = time.time()
@@ -79,7 +78,7 @@ class BaseConnection(object):
         return self.sequence_number
 
     def reply(self, cmd):
-        return self.on_send(self.proto.send_bytes(cmd))
+        self.on_send(self.proto.send_bytes(cmd))
 
     def send(self, cmd, callback=None, notify=True):
         cmd.sequence_number = self.next_sequence()
@@ -96,21 +95,8 @@ class BaseConnection(object):
     def on_close(self):  # pragma: no cover
         pass
 
-    def on_deliver(self, req, resp, reply):  # pragma: no cover
+    def on_deliver(self, req, resp):  # pragma: no cover
         pass
-
-    def _make_reply(self, resp):
-        def reply():
-            reply.called = True
-            return self.reply(resp)
-        reply.called = False
-        return reply
-
-    def _deliver(self, req, resp):
-        reply = self._make_reply(resp)
-        self.on_deliver(req, resp, reply)
-        if not reply.called:
-            self.reply(resp)
 
     def handle(self, cmd):
         self.last_enquire = time.time()
@@ -127,7 +113,10 @@ class BaseConnection(object):
                 resp.resolve(cmd)
         else:
             resp = cmd_type.response(**seq)
-            self._deliver(cmd, resp)
+            post = self.on_deliver(cmd, resp)
+            self.reply(resp)
+            if post:
+                post()
 
     def feed(self, data):
         for e in self.proto.receive_bytes(data):
@@ -145,7 +134,7 @@ class BaseConnection(object):
             self.enquire_response.expire = now + response_timeout
 
     def unbind(self):
-        return self.send(command.Unbind(), lambda _: self.on_close())
+        return self.send(command.Unbind(), lambda resp: self.on_close())
 
 
 class BaseESME(BaseConnection):
