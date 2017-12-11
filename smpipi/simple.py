@@ -24,41 +24,56 @@ class ESME(BaseESME):
         self.closed = True
         self._socket.close()
 
-    def wait_for(self, response, timeout=None):
-        timeout and self.set_timeout(timeout)
-        expire = time.time() + self._socket.gettimeout()
+    def wait_for(self, response, timeout):
+        oldtimeout = self._socket.gettimeout()
+        self.set_timeout(timeout)
+        expire = time.time() + timeout
         while not response.ready and expire > time.time():
-            if not self.read(False):
-                break
+            try:
+                data = self._socket.recv(1024)
+            except socket.timeout:
+                raise Timeout()
+            except IOError:  # pragma: no cover
+                raise Timeout()
+            else:
+                if data:
+                    self.feed(data)
+                else:
+                    break
+            finally:
+                try:
+                    self.set_timeout(oldtimeout)
+                except:  # pragma: no cover
+                    pass
 
         if not response.ready:
             raise Timeout()
 
-    def read(self, timeout_result=True):
+    def read(self):
         if self.closed:
             return False
 
         try:
             data = self._socket.recv(1024)
-        except socket.timeout:
-            return timeout_result
+        except socket.timeout:  # pragma: no cover
+            pass
         except IOError:  # pragma: no cover
             return False
+        else:
+            if data:
+                self.feed(data)
+            else:
+                return False
 
-        if not data:
-            return False
-
-        self.feed(data)
         return True
 
     def close(self):
         resp = self.unbind()
         try:
-            self.wait_for(resp)
+            self.wait_for(resp, 1)
         except Timeout:
             self.on_close()
 
-    def listen(self, timeout=None):
-        timeout and self.set_timeout(timeout)
+    def listen(self):
         while self.read():
             pass
