@@ -7,7 +7,7 @@ tlv_struct = Struct('!HH')
 INT_TYPES = {
     1: int8,
     2: int16,
-    3: int32
+    4: int32
 }
 
 
