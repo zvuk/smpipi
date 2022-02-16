@@ -93,6 +93,7 @@ tags = {
     0x130C: EmptyField('alert_on_message_delivery'),
     0x1380: IntField('its_reply_type', 1),
     0x1383: StrField('its_session_info'),
+    0x5003: StrField('_tag_0x5003'),
 }
 
 names = {field.name: (tag, field) for tag, field in tags.items()}
