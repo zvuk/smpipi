@@ -16,11 +16,12 @@ def command_from_data(data):
 
 
 class Command(CommandMeta('CommandBase', (AttrDict,), {})):
+    is_response = False
     def __init__(self, **kwargs):
         self.update(kwargs)
         self['command_id'] = self.command_id
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return '{}({})'.format(self.__class__.__name__, dict(self))
 
     @staticmethod
@@ -38,7 +39,7 @@ class Command(CommandMeta('CommandBase', (AttrDict,), {})):
         return cmd(**result)
 
     def encode(self):
-        body = ''
+        body = b''
         cmd = self.__class__
         if hasattr(cmd, 'body'):
             body = cmd.body.encode(self)
@@ -48,6 +49,10 @@ class Command(CommandMeta('CommandBase', (AttrDict,), {})):
         self['command_length'] = 16 + len(body)
         header = Header.encode(self)
         return header + body
+
+
+class CommandResp(Command):
+    is_response = True
 
 
 class Header(Packet):
@@ -99,74 +104,124 @@ class GenericNack(Command):
     command_id = 0x80000000
 
 
-class BindReceiver(Command):
-    command_id = 0x00000001
-    body = Bind
-
-
-class BindReceiverResp(Command):
+class BindReceiverResp(CommandResp):
     command_id = 0x80000001
     body = BindResp
 
 
-class BindTransmitter(Command):
-    command_id = 0x00000002
+class BindReceiver(Command):
+    response = BindReceiverResp
+    command_id = 0x00000001
     body = Bind
 
 
-class BindTransmitterResp(Command):
+class BindTransmitterResp(CommandResp):
     command_id = 0x80000002
     body = BindResp
 
 
-class QuerySM(Command):
-    command_id = 0x00000003
-    class body(Packet):
-        pass
+class BindTransmitter(Command):
+    response = BindTransmitterResp
+    command_id = 0x00000002
+    body = Bind
 
 
-class QuerySMResp(Command):
+class QuerySMResp(CommandResp):
     command_id = 0x80000003
     class body(Packet):
-        pass
+        message_id = Field(NString(max=65))
+        final_date = Field(NString(max=17))
+        message_state = Field(int8)
+        error_code = Field(int8)
 
 
-class SubmitSM(Command):
-    command_id = 0x00000004
-    body = Submit
+class QuerySM(Command):
+    response = QuerySMResp
+    command_id = 0x00000003
+    class body(Packet):
+        message_id = Field(NString(max=65))
+        source_addr_ton = Field(int8)
+        source_addr_npi = Field(int8)
+        source_addr = Field(NString(max=21))
 
 
-class SubmitSMResp(Command):
+class SubmitSMResp(CommandResp):
     command_id = 0x80000004
     body = SubmitResp
 
 
-class DeliverSM(Command):
-    command_id = 0x00000005
+class SubmitSM(Command):
+    response = SubmitSMResp
+    command_id = 0x00000004
     body = Submit
 
 
-class DeliverSMResp(Command):
+class DeliverSMResp(CommandResp):
     command_id = 0x80000005
     body = SubmitResp
 
 
-class Unbind(Command):
-    command_id = 0x00000006
+class DeliverSM(Command):
+    response = DeliverSMResp
+    command_id = 0x00000005
+    body = Submit
 
 
-class UnbindResp(Command):
+class UnbindResp(CommandResp):
     command_id = 0x80000006
 
 
-class BindTransceiver(Command):
-    command_id = 0x00000009
-    body = Bind
+class Unbind(Command):
+    response = UnbindResp
+    command_id = 0x00000006
 
 
-class BindTransceiverResp(Command):
+class ReplaceSMResp(CommandResp):
+    command_id = 0x80000007
+
+
+class ReplaceSM(Command):
+    response = ReplaceSMResp
+    command_id = 0x00000007
+    class body(Packet):
+        message_id = Field(NString(max=65))
+        source_addr_ton = Field(int8)
+        source_addr_npi = Field(int8)
+        source_addr = Field(NString(max=21))
+        schedule_delivery_time = Field(NString(max=17))
+        validity_period = Field(NString(max=17))
+        registered_delivery = Field(int8)
+        sm_default_msg_id = Field(int8)
+        short_message = SizeField(Field(int8, 'sm_length'), String(max=254))
+
+
+class CancelSMResp(CommandResp):
+    command_id = 0x80000008
+
+
+class CancelSM(Command):
+    response = CancelSMResp
+    command_id = 0x00000008
+    class body(Packet):
+        service_type = Field(NString(max=6))
+        message_id = Field(NString(max=65))
+        source_addr_ton = Field(int8)
+        source_addr_npi = Field(int8)
+        source_addr = Field(NString(max=21))
+        dest_addr_ton = Field(int8)
+        dest_addr_npi = Field(int8)
+        destination_addr = Field(NString(max=21))
+
+
+class BindTransceiverResp(CommandResp):
     command_id = 0x80000009
     body = BindResp
+
+
+class BindTransceiver(Command):
+    response = BindTransceiverResp
+    command_id = 0x00000009
+    body = Bind
 
 
 class Outbind(Command):
@@ -176,41 +231,55 @@ class Outbind(Command):
         password = Field(NString(max=9))
 
 
-class EnquireLink(Command):
-    command_id = 0x00000015
-
-
-class EnquireLinkResp(Command):
+class EnquireLinkResp(CommandResp):
     command_id = 0x80000015
 
 
-class SMEAddr(Packet):
-    dest_addr_ton = Field(int8)
-    dest_addr_npi = Field(int8)
-    destination_addr = Field(NString(max=21))
+class EnquireLink(Command):
+    response = EnquireLinkResp
+    command_id = 0x00000015
 
 
-class DistributionList(Packet):
-    dl_name = Field(NString(max=21))
+class SubmitMultiResp(CommandResp):
+    command_id = 0x80000021
 
+    class body(Packet):
+        class UnsuccessDelivery(Packet):
+            dest_addr_ton = Field(int8)
+            dest_addr_npi = Field(int8)
+            destination_addr = Field(NString(max=21))
+            error_status_code = Field(int32)
 
-class DestAddr(Packet):
-    dest_flag = DispatchField(int8, {
-        1: SMEAddr,
-        2: DistributionList
-    })
+        message_id = Field(NString(max=65))
+        unsuccess_sme = SizeField(Field(int8, 'no_unsuccess'),
+                                  Array(UnsuccessDelivery))
 
 
 class SubmitMulti(Command):
+    response = SubmitMultiResp
     command_id = 0x00000021
     class body(Packet):
+        class DestAddr(Packet):
+            class SMEAddr(Packet):
+                dest_addr_ton = Field(int8)
+                dest_addr_npi = Field(int8)
+                destination_addr = Field(NString(max=21))
+
+            class DistributionList(Packet):
+                dl_name = Field(NString(max=21))
+
+            dest_flag = DispatchField(int8, {
+                1: SMEAddr,
+                2: DistributionList
+            })
+
         service_type = Field(NString(max=6))
         source_addr_ton = Field(int8)
         source_addr_npi = Field(int8)
         source_addr = Field(NString(max=21))
         dest_address = SizeField(Field(int8, 'number_of_dests'),
                                  Array(DestAddr))
-        ecm_class = Field(int8)
+        esm_class = Field(int8)
         protocol_id = Field(int8)
         priority_flag = Field(int8)
         schedule_delivery_time = Field(NString(max=17))
@@ -222,29 +291,22 @@ class SubmitMulti(Command):
         short_message = SizeField(Field(int8, 'sm_length'), String(max=254))
 
 
-class UnsuccessDelivery(Packet):
-    dest_addr_ton = Field(int8)
-    dest_addr_npi = Field(int8)
-    destination_addr = Field(NString(max=21))
-    error_status_code = Field(int32)
-
-
-class SubmitMultiResp(Command):
-    command_id = 0x80000021
-
-    class body(Packet):
-        message_id = Field(NString(max=65))
-        unsuccess_sme = SizeField(Field(int8, 'no_unsuccess'),
-                                  Array(UnsuccessDelivery))
+class DataSMResp(CommandResp):
+    command_id = 0x80000103
+    body = SubmitResp
 
 
 class DataSM(Command):
+    response = DataSMResp
     command_id = 0x00000103
     class body(Packet):
-        pass
-
-
-class DataSM(Command):
-    command_id = 0x80000103
-    class body(Packet):
-        pass
+        service_type = Field(NString(max=6))
+        source_addr_ton = Field(int8)
+        source_addr_npi = Field(int8)
+        source_addr = Field(NString(max=65))
+        dest_addr_ton = Field(int8)
+        dest_addr_npi = Field(int8)
+        destination_addr = Field(NString(max=65))
+        esm_class = Field(int8)
+        registered_delivery = Field(int8)
+        data_coding = Field(int8)
